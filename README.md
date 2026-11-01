@@ -1,11 +1,8 @@
 <div align="center">
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="hardware/images/compatriot_logo_white.png">
-  <img src="hardware/images/compatriot_logo_black.png" alt="Compatriot V3" width="520">
-</picture>
+<img src="hardware/images/compatriot_logo_red.png" alt="Compatriot V3" width="520">
 
-<img src="hardware/images/board.png" alt="Compatriot badge, top view" width="460">
+<img src="hardware/images/board.png" alt="Compatriot badge, top view" width="780">
 
 **The Compatriot hardware security badge.** Pre-built firmware, full hardware
 reference, and player guides for every challenge.
