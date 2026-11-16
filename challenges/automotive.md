@@ -95,19 +95,6 @@ The dashboard's speed reading comes off one CAN ID, and nothing checks whether t
 
 `candump` / `cansend` (can-utils).
 
-Hint** 
-
-Only four IDs show up on the bus at all. One of them changes in step with the number on the badge's own speedometer. Candump both and compare.
-
-**Full guide** 
-
-  1. With `cannelloni` still running in its own terminal (see Bus setup above), open a second terminal and run `candump vcan0`. Watch for the ID that tracks the badge's on-screen speedometer: `0x244`.
-  2. Decode the layout: bytes 3-4, big-endian. 120 km/h is `0x0078`.
-  3. In that same second terminal, send it: `cansend vcan0 244#0000000078`
-  4. The badge shows SOLVED immediately. No flag entry needed.
-
-
-
 02
 
 ## Tester Present
@@ -120,18 +107,6 @@ The simplest valid UDS request there is. Real diagnostic tools send it periodica
 
 `cansend`. The badge parses raw ISO-TP single frames, so every byte string below starts with a length byte (the frame's PCI byte, `0N` where N is how many UDS bytes follow), then the UDS service ID and sub-function. Look up UDS service `0x3E` and its expected sub-function byte.
 
-**Hint** 
-
-Three bytes, sent once, to the request ID: a length byte, then the service byte, then zero.
-
-**Full guide** 
-
-  1. Send: `cansend vcan0 7E0#023E00` (`02` = ISO-TP single-frame length, `3E 00` = TesterPresent, sub-function 0).
-  2. That's the whole interaction, a single correctly-formed frame.
-  3. The badge shows SOLVED immediately. Optionally confirm the ECU's ack (`02 7E 00`) on `0x7E8` with `candump vcan0`.
-
-
-
 03
 
 ## Both Indicators
@@ -143,18 +118,6 @@ Get left and right turn signals active at the same moment. The badge's own UI ca
 #### Tool
 
 `candump` to observe, `cansend` to inject.
-
-**Hint** 
-
-Same ID as the indicator stalk. Watch the byte that changes when you tap left vs right on the badge, then combine both values with a bitwise OR.
-
-**Full guide** 
-
-  1. Run `candump vcan0` and toggle the indicator on the badge's Vehicle tab a few times. `0x188` only ever carries `01` (left) or `02` (right), never `03`.
-  2. Forge a frame with both bits set: `cansend vcan0 188#03`
-  3. The badge shows SOLVED immediately, and the dashboard briefly shows both indicators active.
-
-
 
 04
 
@@ -170,21 +133,6 @@ Something that speaks ISO-TP and handles the Flow Control handshake for you: `is
 
 If a receive call hangs, check that your Flow Control is going out on the request ID, not the response ID. ISO-TP flow control always flows opposite the data.
 
-**Hint** 
-
-The UDS service for reading a data identifier is `0x22`, and the VIN's identifier is a standard one you can look up. Once you have the 17 characters, the first 3 tell you who made the car.
-
-**Full guide** 
-
-  1. Start the receiver **first** , in its own terminal, and leave it running: `isotprecv -s 7E0 -d 7E8 vcan0`. It needs to already be listening before the request goes out, so it can answer the ECU's First Frame with a Flow Control in time. (`-s` is the ID _this tool_ sends on, here the Flow Control back to the ECU on the request ID; `-d` is the ID it listens for data on, the response ID.)
-  2. In a second terminal, send the request: `echo "22 F1 90" | isotpsend -s 7E0 -d 7E8 vcan0`
-  3. Back in the first terminal, the reassembled 20-byte reply prints out.
-  4. Strip the 3-byte UDS header (`62 F1 90`) off the front. The remaining 17 bytes are the VIN in ASCII.
-  5. The badge auto-solves the moment the last Consecutive Frame goes out, so this part is already scored.
-  6. Decode the VIN's first 3 characters (its World Manufacturer Identifier) with a free online VIN decoder to find out which real car it belongs to. The flag is that car's name, not the VIN.
-
-
-
 05
 
 ## Seed & Key
@@ -198,20 +146,3 @@ A real UDS `SecurityAccess` seed/key handshake, gated behind an extended diagnos
 `cansend`/`candump` and a calculator.
 
 A wrong key invalidates the outstanding seed. Request a fresh one and try again. No lockout, but every wrong guess costs a round trip.
-
-**Hint** 
-
-XOR each example pair together. If you get the same result both times, that result is the constant the badge uses on every seed, including yours.
-
-**Full guide** 
-
-Every frame here is a raw ISO-TP single frame, so each starts with a length byte (PCI) before the actual UDS bytes: `02` for a 2-byte UDS payload, `04` for a 4-byte one.
-
-  1. Open the extended diagnostic session: `cansend vcan0 7E0#021003` (`02` = length, `10 03` = DiagnosticSessionControl, extended. The ECU should answer with a positive response, `02 50 03`, on `0x7E8`).
-  2. Request a seed: `cansend vcan0 7E0#022701` (`27 01` = SecurityAccess, request seed). The ECU replies on `0x7E8` with `04 67 01 <seedHi> <seedLo>`, your live seed.
-  3. Work out the XOR constant from the two example pairs shown on the badge (they both XOR to the same value).
-  4. Compute your key: `key = your_seed XOR constant`.
-  5. Send it back: `cansend vcan0 7E0#042702<keyHi><keyLo>` (`04` = length, 4 UDS bytes follow: `27 02` \+ your 2-byte key).
-  6. A correct key gets a positive response (`02 67 02`) and the badge shows SOLVED immediately.
-
-
