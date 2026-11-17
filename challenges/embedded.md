@@ -112,22 +112,6 @@ Connection**
 
 No extra wiring. Just the badge's own USB cable, plugged into your computer. See Connecting to the badge's serial port above for the exact commands.
 
-**Hint** 
-
-`ls` is not the whole truth on a UNIX box. A directory can hold something a listing doesn't show you, and `cd` doesn't care what `ls` hides.
-
-**Full guide** 
-
-  1. Connect at 115200 8N1. You land at a shell prompt in the home directory.
-  2. `ls` shows a notes file and a couple of directories. Nothing obviously useful.
-  3. `cat` the notes file. It's a red herring about a password, a nudge to keep digging rather than an answer.
-  4. `cd` into the documents directory and `ls` again. Only one file shows up.
-  5. The shell's `ls` hides dot-entries, but `cd` doesn't block them. Try `cd .secret` even though you never saw it listed. It works.
-  6. `ls` again inside it. The flag file is right there.
-  7. `cat` it. The flag prints, and the badge marks the lab solved the instant it does.
-
-
-
 02
 
 ## Baud Hunter (UART)
@@ -154,22 +138,6 @@ IO16| 4 (TX_ESP32)| Any free channel
 GND| any GND pin| GND, do not skip this wire  
   
 That's it, two wires. There's nothing to receive, so no TX channel on the analyzer side is needed.
-
-**Hint** 
-
-9600 was wrong. Measure a bit's width directly off the waveform instead of guessing, or just try the other standard rates in order.
-
-**Full guide** 
-
-  1. Wire a logic analyzer channel to `IO16` on header U13 pin 4, and its GND to any GND pin on the badge. Don't skip the ground wire.
-  2. In Logic 2, open the channel's sample rate dropdown (top toolbar) and set it to at least 1 MS/s, then click **Start** to capture 2-3 seconds.
-  3. Click the **+** next to "Analyzers" in the right-hand panel, pick **Async Serial** , set its Input Channel to the one you wired, and leave the baud rate on the default 9600 for now.
-  4. Look at the decode: at 9600 it's garbage, which just confirms something is transmitting and that 9600 is wrong.
-  5. Zoom into one data bit on the waveform and measure its width directly (click-drag a measurement across the narrowest pulse, Logic 2 shows the time delta). Baud is 1 divided by that time. Expect something in the tens of microseconds.
-  6. Re-open the analyzer's settings (gear icon) and set the baud rate to `57600`. If you'd rather not measure, that's the answer: 9600 was the wrong guess, the badge actually transmits at **57600 baud**.
-  7. The decoded bytes show in the Data Table at the bottom and annotated on the trace itself, spelling out the flag, repeating once per second.
-
-
 
 03
 
@@ -198,21 +166,6 @@ IO22| 6 (I2C_SCL)| your board's SCL + logic analyzer
 GND| any GND pin| shared GND, both devices  
   
 Same bus the EEPROM Raider chip sits on. Don't drive 5 V logic onto these pins, only 3.3 V.
-
-**Hint** 
-
-Nothing answers at 0x42 yet. Build the thing that should.
-
-**Full guide** 
-
-  1. Wire a second microcontroller onto the bus: its SDA to `IO21` (U14 pin 5), its SCL to `IO22` (U14 pin 6), and a shared GND.
-  2. Program it as an I2C slave on address `0x42` (e.g. Arduino `Wire.begin(0x42)` with an `onReceive()` handler). It doesn't need to do anything with the bytes, it just has to exist and ACK.
-  3. Also clip a logic analyzer onto IO21/IO22 + GND. Set the sample rate to ≥1 MS/s and click **Start**.
-  4. Click the **+** next to Analyzers, pick **I2C** , and set its SDA/SCL inputs to the matching channels.
-  5. With your slave running, the Data Table now shows a Start, an address byte with a Write flag that's **ACKed** this time, a run of data bytes, then a Stop, repeating about once a second.
-  6. Read the data bytes as ASCII directly from the Data Table (it has an ASCII column), or by hand from the hex. Together they spell the flag.
-
-
 
 04
 
@@ -243,21 +196,6 @@ GND| U13 GND| GND
 
 No MISO wire, there isn't one. This is a transmit-only bus, leave that channel unassigned in your decoder.
 
-**Hint** 
-
-The bus isn't leaking the flag, it's leaking the way in. Mode 0, MSB first, and the password is plain ASCII once decoded.
-
-**Full guide** 
-
-  1. Wire SCK to `IO2` (U13 pin 6), MOSI to `IO3` (U13 pin 5), CS to `IO15` (U13 pin 2), plus GND. Leave MISO unassigned, this is a transmit-only bus.
-  2. Set the sample rate to ≥1 MS/s (10x the ~100 kHz bus clock) and click **Start** , let it run a couple of seconds to catch a few bursts.
-  3. Click the **+** next to Analyzers, pick **SPI** , assign CLK/MOSI/ Enable to the matching channels, and set Clock State (CPOL) = 0, Clock Phase (CPHA) = 0, Bits per Transfer = 8, Significant Bit = MSB first, Enable Line = Active Low.
-  4. The MOSI lane's decode in the Data Table reads as ASCII text: that's the password. If you see garbage instead, double-check the Enable polarity and CPOL/CPHA, a mode mismatch is the usual culprit.
-  5. Open a serial connection to the badge at 115200 8N1 with this lab selected, and type the recovered password in.
-  6. The badge replies with the flag directly in the terminal and marks the lab solved.
-
-
-
 05
 
 ## EEPROM Raider
@@ -284,20 +222,6 @@ VCC| 3.3V
 GND| GND  
   
 **Power the badge off first.** Switch the CH341A to I2C mode and clip the SOIC-8 test clip onto U2, matching pin 1 carefully, the same precision this takes on Flash Raider.
-
-**Hint** 
-
-This isn't a 24C02. One address byte reads you garbage from the wrong place, this chip needs two.
-
-**Full guide** 
-
-  1. Power the badge off. Switch the CH341A to I2C mode and clip it onto U2: SDA, SCL, VCC (3.3V), GND.
-  2. Find which `/dev/i2c-N` bus it registered as with `i2cdetect -l`.
-  3. Confirm the chip answers: `i2cdetect -y <bus>`. You should see `50` in the grid.
-  4. Don't reach for plain `i2cdump`, it assumes single-byte addressing, which is wrong for a 32 KB part. Use `i2ctransfer -y <bus> w2@0x50 0x00 0x00 r128@0x50` instead. This writes the two-byte address 0x0000, then reads 128 bytes back from there.
-  5. The output is the banner in ASCII, flag included.
-
-
 
 06
 
@@ -328,21 +252,6 @@ GND| GND
   
 **Power the badge off and unplug USB entirely first.** Check the CH341A's voltage jumper is set to 3.3V, not 5V, that's the single most common way to damage this chip. Clip the SOIC-8 test clip onto U5, matching pin 1 carefully.
 
-**Hint** 
-
-The flag was never in the microcontroller. Dump the external chip and search the raw bytes for readable text.
-
-**Full guide** 
-
-  1. Power the badge off and unplug USB entirely. Never clip onto a chip another master is actively driving.
-  2. Check the CH341A's voltage jumper is set to 3.3V, not 5V. This is the single most common way to damage the chip.
-  3. Clip the SOIC-8 test clip onto U5, matching pin 1 carefully. A clip rotated or offset by one pin is the usual cause of a failed read.
-  4. Confirm the programmer sees the chip: `flashrom -p ch341a_spi`. It should identify a W25Q64. Don't proceed until this succeeds cleanly.
-  5. Dump it: `flashrom -p ch341a_spi -r dump.bin`.
-  6. Search the image: `strings dump.bin | grep wired{`. The banner sits at offset 0.
-
-
-
 07
 
 ## Blinkenlights (LED)
@@ -362,20 +271,6 @@ Film at least one full loop, including the longer gap that marks where the messa
 **Connection** 
 
 Nothing to wire up. The NeoPixel is on-board (IO10), there's no external hardware for this one at all, just point a phone camera at the badge.
-
-**Hint** 
-
-Shortest flash equals one unit. Every other flash and gap is a whole-number multiple of that same length.
-
-**Full guide** 
-
-  1. Film the LED in video mode for 10-15 seconds, long enough to catch one full loop including the long repeat gap.
-  2. Scrub the video frame by frame to tell short flashes from long ones precisely.
-  3. Identify the unit length from the shortest flash. Dashes, inter-symbol gaps and inter-character gaps are all whole-number multiples of it.
-  4. Transcribe what you see into dots and dashes, using gap length to tell where one symbol, one character, and the whole message end.
-  5. Decode the Morse with any reference. Watch for the less common sequences that spell the flag's punctuation.
-
-
 
 08
 
@@ -408,29 +303,3 @@ NRST| NRST (if your probe breaks it out)
 GND| GND  
   
 H3 has no 3V3 pin, the STM32 target is already powered from the main board. Don't wire 3V3 to this header.
-
-**Hint** 
-
-The flag isn't in flash as plaintext, but the chip already decrypted it once into RAM at boot. You can watch it happen, or redo the single instruction that undoes it.
-
-**Full guide** 
-
-**Static path.**
-
-  1. Wire the probe to H3 (see Connection above): SWDIO, SWCLK, GND, and NRST if your probe has it.
-  2. Dump flash over SWD: `openocd -f interface/stlink.cfg -f target/stm32f1x.cfg -c "init" -c "reset halt" -c "dump_image dump.bin 0x08000000 0x10000" -c "shutdown"`
-  3. Confirm it's encrypted: `strings dump.bin | grep wired{` finds nothing.
-  4. Disassemble: `arm-none-eabi-objdump -D -b binary -m arm --no-show-raw-insn dump.bin | less` (or import into Ghidra as raw ARM Cortex at base 0x08000000).
-  5. Find the small loop that reads a byte, XORs it with an immediate, and writes it elsewhere. That immediate is the key.
-  6. XOR the ciphertext sitting next to it in `.rodata` with that key to get the flag.
-
-
-
-**Live path, faster.**
-
-  1. Start OpenOCD and leave it running: `openocd -f interface/stlink.cfg -f target/stm32f1x.cfg`
-  2. In a second terminal, attach GDB: `arm-none-eabi-gdb`, then `target remote localhost:3333`.
-  3. Disassemble the start of flash to find the key and the RAM address the decrypted bytes land in: `x/40i 0x08000000`.
-  4. Read that RAM address as a string, e.g. `x/29bs 0x20000000` (adjust to whatever address your disassembly actually points at). The flag prints already decrypted.
-
-

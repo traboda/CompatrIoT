@@ -9,8 +9,8 @@ just flash and go.
 ## Quick flash (recommended)
 
 ```bash
-pip install esptool      # if you don't have it
-./flash.sh /dev/ttyACM0  # adjust the port if needed
+./flash_esp32.sh         # ESP32 badge firmware (auto-detects the port + esptool)
+./flash_stm32.sh         # STM32 "Target Acquired" firmware (needs an ST-Link on H3)
 ```
 
 This writes `compatriot_merged.bin`, a single image with the bootloader, partition
